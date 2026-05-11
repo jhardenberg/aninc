@@ -10,7 +10,7 @@ def main():
     parser = argparse.ArgumentParser(description="Animate a horizontal slice from a 3D NetCDF file.")
 
     # Required arguments
-    parser.add_argument("file", help="Path to the NetCDF file")
+    parser.add_argument("files", nargs="+", help="Path to one or more NetCDF files (supports wildcards)")
     parser.add_argument("-o", "--output",required=False, default="animation.mp4", help="Output filename (default: animation.mp4)")
     parser.add_argument("-v", "--var", required=False, help="Variable name to animate")
     parser.add_argument("--level", type=int, default=0, help="Index of the vertical level (default: 0)")
@@ -20,12 +20,16 @@ def main():
     parser.add_argument("--cmax", type=float, help="Maximum value for colorbar")
     parser.add_argument("--cmap", default="viridis", help="Matplotlib colormap (default: viridis)")
     parser.add_argument("--fps", type=int, default=10, help="Frames per second")
+    parser.add_argument("--no-progress", action="store_true", help="Suppress the progress bar")
 
     args = parser.parse_args()
 
     # Load dataset
     try:
-        ds = xr.open_dataset(args.file)
+        # Use open_mfdataset to support multiple files and dask for lazy loading
+        # chunks={} ensures dask is used
+        ds = xr.open_mfdataset(args.files, chunks={})
+        
         if args.var:
             var_name = args.var
         else:
@@ -84,7 +88,9 @@ def main():
 
     # Save
     print(f"Processing {num_frames} frames...")
-    pbar = tqdm(total=num_frames)
+    
+    # Progress bar is disabled if --no-progress is used
+    pbar = tqdm(total=num_frames, disable=args.no_progress)
 
     def progress_callback(i, n):
         pbar.update(1)

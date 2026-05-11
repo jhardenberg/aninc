@@ -2,3 +2,5 @@ xarray
 matplotlib
 numpy
 netcdf4
+tqdm
+dask
