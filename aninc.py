@@ -5,6 +5,7 @@ import matplotlib.animation as animation
 import numpy as np
 import sys
 from tqdm import tqdm
+from mpl_toolkits.axes_grid1 import make_axes_locatable
 
 def main():
     parser = argparse.ArgumentParser(description="Animate a horizontal slice from a 3D NetCDF file.")
@@ -13,7 +14,7 @@ def main():
     parser.add_argument("files", nargs="+", help="Path to one or more NetCDF files (supports wildcards)")
     parser.add_argument("-o", "--output",required=False, default="animation.mp4", help="Output filename (default: animation.mp4)")
     parser.add_argument("-v", "--var", required=False, help="Variable name to animate")
-    parser.add_argument("--level", type=int, default=0, help="Index of the vertical level (default: 0)")
+    parser.add_argument("-l", "--level", type=int, default=0, help="Index of the vertical level (default: 0)")
 
     # Optional styling
     parser.add_argument("--cmin", type=float, help="Minimum value for colorbar")
@@ -21,6 +22,7 @@ def main():
     parser.add_argument("--cmap", default="viridis", help="Matplotlib colormap (default: viridis)")
     parser.add_argument("--fps", type=int, default=10, help="Frames per second")
     parser.add_argument("--no-progress", action="store_true", help="Suppress the progress bar")
+    parser.add_argument("--horizontal", action="store_true", help="Use a horizontal colorbar")
 
     args = parser.parse_args()
 
@@ -62,13 +64,23 @@ def main():
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.set_aspect('equal')
 
+    divider = make_axes_locatable(ax)
+    if args.horizontal:
+        cax = divider.append_axes("bottom", size="5%", pad=0.5)
+        cbar_kwargs = {'orientation': 'horizontal'}
+    else:
+        cax = divider.append_axes("right", size="5%", pad=0.1)
+        cbar_kwargs = {'orientation': 'vertical'}
+
     # Initial frame
     im = slice_2d.isel(time=0).plot(
         ax=ax,
+        cbar_ax=cax,
         add_colorbar=True,
         cmap=args.cmap,
         vmin=vmin,
-        vmax=vmax
+        vmax=vmax,
+        cbar_kwargs=cbar_kwargs
     )
 
     title = ax.set_title(f"Var: {var_name} | Level Index: {args.level} | Time: {slice_2d.time.values[0]}")
