@@ -4,14 +4,15 @@ import matplotlib.pyplot as plt
 import matplotlib.animation as animation
 import numpy as np
 import sys
+from tqdm import tqdm
 
 def main():
     parser = argparse.ArgumentParser(description="Animate a horizontal slice from a 3D NetCDF file.")
 
     # Required arguments
     parser.add_argument("file", help="Path to the NetCDF file")
-    parser.add_argument("output", nargs='?', default="animation.mp4", help="Output filename (default: animation.mp4)")
-    parser.add_argument("-v", "--var", required=True, help="Variable name to animate")
+    parser.add_argument("-o", "--output",required=False, default="animation.mp4", help="Output filename (default: animation.mp4)")
+    parser.add_argument("-v", "--var", required=False, help="Variable name to animate")
     parser.add_argument("--level", type=int, default=0, help="Index of the vertical level (default: 0)")
 
     # Optional styling
@@ -25,7 +26,16 @@ def main():
     # Load dataset
     try:
         ds = xr.open_dataset(args.file)
-        data = ds[args.var]
+        if args.var:
+            var_name = args.var
+        else:
+            if not ds.data_vars:
+                print("Error: No data variables found in the NetCDF file.")
+                sys.exit(1)
+            var_name = list(ds.data_vars)[0]
+            print(f"No variable specified. Using the first available variable: {var_name}")
+        
+        data = ds[var_name]
     except Exception as e:
         print(f"Error loading file or variable: {e}")
         sys.exit(1)
@@ -57,27 +67,35 @@ def main():
         vmax=vmax
     )
 
-    title = ax.set_title(f"Var: {args.var} | Level Index: {args.level} | Time: {slice_2d.time.values[0]}")
+    title = ax.set_title(f"Var: {var_name} | Level Index: {args.level} | Time: {slice_2d.time.values[0]}")
 
     def update(frame):
         # Update the image data
         current_step = slice_2d.isel(time=frame)
         im.set_array(current_step.values.flatten())
-        title.set_text(f"Var: {args.var} | Level Index: {args.level} | Time: {current_step.time.values}")
+        title.set_text(f"Var: {var_name} | Level Index: {args.level} | Time: {current_step.time.values}")
         return im, title
 
     # Create animation
-    print(f"Processing {len(slice_2d.time)} frames...")
+    num_frames = len(slice_2d.time)
     ani = animation.FuncAnimation(
-        fig, update, frames=len(slice_2d.time), interval=1000/args.fps, blit=False
+        fig, update, frames=num_frames, interval=1000/args.fps, blit=False
     )
 
     # Save
+    print(f"Processing {num_frames} frames...")
+    pbar = tqdm(total=num_frames)
+
+    def progress_callback(i, n):
+        pbar.update(1)
+
     try:
-        ani.save(args.output, writer='ffmpeg', fps=args.fps)
-        print(f"Success! Animation saved to {args.output}")
+        ani.save(args.output, writer='ffmpeg', fps=args.fps, progress_callback=progress_callback)
+        pbar.close()
+        print(f"\nSuccess! Animation saved to {args.output}")
     except Exception as e:
-        print(f"Error saving animation: {e}. Ensure 'ffmpeg' is installed.")
+        pbar.close()
+        print(f"\nError saving animation: {e}. Ensure 'ffmpeg' is installed.")
 
 if __name__ == "__main__":
     main()
